@@ -1,0 +1,91 @@
+data:
+  data_path: root/training_split # Give either the path of a subject folder, i.e. root/subject_1, or the path of a folder with a list_subjects.txt file.
+  fodf_path: result/csd # You can specify a path containing the gold standard / ground-truth fODFs, which can be used for supervised training of the model. Here, we assume that every subject would have a folder with the csd output root/subject_1/result/csd.
+  data_path_validation: root/val_split # Give either the path of a subject folder, i.e. root/subject_1, or the path of a folder with a list_subjects.txt file. These subjects will be used for validation.
+  rf_name: dhollander # Specify the name of the response function, assuming every subject would have the WM, GM, and CSF response functions in the folder root/subject_1/response_functions/dhollander
+  normalize_per_shell: False # Pre-processing normalization of the response functions and diffusion signal. If set to True, then the signal is normalized shell-wise (each shell is normalized by a shell-specific value), otherwise each shell is normalized by the B0 value. Recommended setting is False.
+  normalize_in_mask: False # Pre-processing normalization of the response functions and diffusion signal. If set to True, then each subject is normalized by the average diffusion signal in the provided brain mask, otherwise it is normalized by the provided WM response function. Recommanded setting is False.
+  gradient_mask: null # Used for super-resolution training. You can specify the name. e.g. bvecs_mask.txt, of a txt file with 0 / 1 value, masking the corresponding bvecs in the network input.
+  loading_method: memmap # Different loading methods are implemented. We recommend memmap for its efficiency. Other options are numpy, nibabel, and h5.
+  cpu_subject_loader: 1 # Number of cpu workers for subject loading.
+  cpu_dataloader : 4 # Number of cpu workers for torch dataloader.
+  max_n_batch: 900 # Number of batch per epoch
+  max_n_batch_val: 225 # Number of validation batch per epoch.
+training:
+  batch_size: 16
+  batch_size_val: 64
+  lr: 1.7e-3
+  n_epoch: 50
+  only_save_last: True # Only save the last network weights
+  load_state: null # Load a pretrained network
+  expname: mixed # Name of the experiment. All results will be saved in the folder root/training_split/results/expname
+  compute_extra_loss: True # Compute losses that are not used for training, i.e. with loss weight 0. Usefull to monitor metrics not used by training or, if set to False, to improve training speed.
+model:
+  conv_name: mixed # Convolution used by the network. Options are mixed, spherical, spatial, spatial_vec, spatial_sh.
+  isoSpa: True # Use isotropic spatial kernel.
+  concatenate: False # Concatenate spatial-spherical patch PxPxP into a single spherical signal with PxPxP features.
+  filter_start: 32 # Number of features of the first layer in the U-Net. Then muliplied by 2 after every pooling.
+  patch_size: 3 # Input spherical patch size.
+  kernel_sizeSph: 5 # Spherical convolution kernel size.
+  kernel_sizeSpa: 3 # Spatial convolution kernel size.
+  depth: 4 # Depth of the UNet (i.e. number of convolution + 1)
+  n_side: 8 # Spherical grid resolution (any 2**k number)
+  sh_degree: 18 # Spherical harmonic degree for interpolation.
+  normalize: True # Normalize the output of the network, making sure that S0 = f_wm*R_wm_0 + f_csf*R_csf_0 + f_gm*R_gm_0
+  use_hemisphere: False # Use the proposed hemispherical sampling.
+  use_legacy: False # Just set it to False.
+  train_rf: False # We provide the option to train the reponse functions. This has not been properly tested.
+  tissues: # Choose the tissue decomposition.
+    wm: True
+    gm: False
+    csf: True
+loss: # We provide a set of losses, either unsupervised or supervised. You can implement new losses in utils/loss.py and add their config here!
+  reconstruction: # Loss related to the reconstructed diffusion signal.
+    intensity:
+      norm_name: L2
+      weight: 1
+  equi: # Loss related to the equivariant fODF estimation (i.e. white matter tissue)
+    non_negativity:
+      norm_name: L2
+      weight: 0.1
+      n_side_fodf_interpolation: 16
+      use_hemisphere: True
+    sparsity:
+      norm_name: cauchy
+      weight: 1.0e-5
+      sigma: 1.0e-5
+    total_variation:
+      norm_name: L2
+      weight: 0
+      use_shc: False
+      use_normed: True
+    gfa: # Generalized fractionnal anisotropy
+      norm_name: L1
+      weight: 0
+    pve: # Regularization to avoid tissue collapse
+      norm_name: L1
+      weight: 0
+    prior_rf: # Used if training the response function, to make sure that the learnt RF is not too far from the original.
+      norm_name: L2
+      weight: 0
+    nn_rf: # Used if training the response function. Constraint the non-negativity of the RF.
+      norm_name: L2
+      weight: 0
+    fodf_reconstruction: # Supervised training on the white matter fODF.
+      norm_name: L2
+      weight: 0
+  inva: # Loss related to the invariant fODF estimation (i.e. grey matter and CSF tissue)
+    total_variation:
+      norm_name: L2
+      weight: 0
+      use_shc: True
+      use_normed: False
+    pve:
+      norm_name: L1
+      weight: 0
+    prior_rf:  # Used if training the response function, to make sure that the learnt RF is not too far from the original.
+      norm_name: L2
+      weight: 0
+    fodf_reconstruction:  # Supervised training on the grey matter and CSF fODF.
+      norm_name: L2
+      weight: 0

@@ -1,0 +1,13 @@
+data:
+  data_path: root/subject_1 # Give the path of a subject folder
+  loading_method: memmap # Different loading methods are implemented. We recommend memmap for its efficiency. Other options are numpy, nibabel, and h5.
+  cpu_dataloader : 4 # Number of cpu workers for torch dataloader.
+testing:
+  model_path: root/train_split/results/mixed # Path to the model result folder.
+  batch_size: 128
+  expname: mixed_trained # Name of the experiment. All results will be saved in the folder root/subject_1/results/expname
+  epoch: null # If not null, load the network at the specified epoch.
+  middle_voxel: True # For every spatial patch, only extract the middle voxel fODF.
+  save_count: False # Save the count of the number of voxels processed.
+  save_reconstruction: False # Save the reconstruction of the diffusion signal.
+  save_fodf: True # Save the fODF estimation.

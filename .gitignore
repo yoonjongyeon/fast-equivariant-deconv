@@ -1,0 +1,4 @@
+*_exclude.ipynb
+*.zip
+*.csv
+__pycache__/

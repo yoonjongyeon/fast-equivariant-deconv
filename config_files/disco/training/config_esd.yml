@@ -1,0 +1,91 @@
+data:
+  cpu_dataloader: 4
+  cpu_subject_loader: 1
+  data_path: ~/data/disco/DiSCo1/snr30/
+  data_path_validation: null
+  fodf_path: null
+  gradient_mask: null
+  loading_method: memmap
+  max_n_batch: 900
+  max_n_batch_val: 225
+  normalize_in_mask: false
+  normalize_per_shell: false
+  rf_name: dhollander
+loss:
+  equi:
+    fodf_reconstruction:
+      norm_name: L2
+      weight: 0
+    gfa:
+      norm_name: L1
+      weight: 0
+    nn_rf:
+      norm_name: L2
+      weight: 0
+    non_negativity:
+      n_side_fodf_interpolation: 16
+      norm_name: L2
+      use_hemisphere: true
+      weight: 0.1
+    prior_rf:
+      norm_name: L2
+      weight: 0
+    pve:
+      norm_name: L1
+      weight: 0
+    sparsity:
+      norm_name: cauchy
+      sigma: 1.0e-05
+      weight: 5.0e-05
+    total_variation:
+      norm_name: L2
+      use_normed: true
+      use_shc: false
+      weight: 0
+  inva:
+    fodf_reconstruction:
+      norm_name: L2
+      weight: 0
+    prior_rf:
+      norm_name: L2
+      weight: 0
+    pve:
+      norm_name: L1
+      weight: 0
+    total_variation:
+      norm_name: L2
+      use_normed: false
+      use_shc: true
+      weight: 0
+  reconstruction:
+    intensity:
+      norm_name: L2
+      weight: 1
+model:
+  concatenate: false
+  conv_name: spherical
+  depth: 4
+  filter_start: 32
+  isoSpa: false
+  kernel_sizeSpa: 1
+  kernel_sizeSph: 5
+  n_side: 8
+  normalize: true
+  patch_size: 1
+  sh_degree: 18
+  tissues:
+    csf: true
+    gm: false
+    wm: true
+  train_rf: false
+  use_hemisphere: false
+  use_legacy: false
+training:
+  batch_size: 16
+  batch_size_val: 64
+  compute_extra_loss: true
+  expname: esd_disco
+  load_state: null
+  lr: 0.0017
+  n_epoch: 50
+  only_save_last: true

@@ -1,0 +1,13 @@
+data:
+  cpu_dataloader: 4
+  data_path: ~/data/disco/DiSCo3/snr30/
+  loading_method: memmap
+testing:
+  batch_size: 32
+  epoch: null
+  expname: cnn_tv_disco
+  middle_voxel: true
+  model_path: ~/data/disco/DiSCo1/snr30/result/cnn_tv_disco/
+  save_count: false
+  save_fodf: true
+  save_reconstruction: false
