@@ -1,16 +1,18 @@
 # Spatio-hemispherical equivariant convolution for dMRI deconvolution
 
-This repository is the official implementation of [Spatio-hemispherical equivariant convolution for dMRI deconvolution](TBD), presented at Neurips 2024. The main application pertains to fODF estimation in diffusion MRI, but is applicable to any spatio-spherical problem with assumed antipodal spherical symmetry in the spherical domain. This work build upon [E3 x SO3 Equivariant Networks for Spherical Deconvolution in Diffusion MRI](https://openreview.net/pdf?id=lri_iAbpn_r), proposing a more efficient spatio-spherical convolution layer.
+Official implementation of [Equivariant spatio-hemispherical networks for diffusion MRI deconvolution](https://arxiv.org/abs/2411.11819), presented at NeurIPS 2024. 
+
+The main application pertains to fODF estimation in diffusion MRI but applies to any spatio-spherical problem with assumed antipodal spherical symmetry in the spherical domain. This work builds upon [E3 x SO3 Equivariant Networks for Spherical Deconvolution in Diffusion MRI](https://openreview.net/pdf?id=lri_iAbpn_r), proposing a more efficient spatio-spherical convolution layer.
 
 ![image](fig/HCP_example.jpg)
-**A deconvolution visualization** comparing recovered fiber orientation distribution functions (fODFs) produced by the widely-used iterative *CSD* [tournier2007] model (**top row**) and our proposed *SHD-TV* model (**bottom row**) with high-resolution / clinically-infeasible (**left**) and low-resolution / clinically-feasible (**right**) spherical sampling. At high-resolutions (**left**), *SHD-TV* demonstrates enhanced localization of fiber orientations, heightened sensitivity to small-angle crossing fibers, and improved spatial consistency in the recovered fibers. At clinical low-resolutions (**right**), *CSD* struggles with the loss of input information, whereas our approach exhibits greater robustness to resolution losses and single-shell imaging protocols, yielding higher fidelity and spatially coherent fODFs.
+**A deconvolution visualization** comparing recovered fiber orientation distribution functions (fODFs) produced by the widely-used iterative *CSD* [tournier2007] model (**top row**) and our proposed *SHD-TV* model (**bottom row**) with high-resolution / clinically-infeasible (**left**) and low-resolution / clinically-feasible (**right**) spherical sampling. At high resolutions (**left**), *SHD-TV* demonstrates enhanced localization of fiber orientations, heightened sensitivity to small-angle crossing fibers, and improved spatial consistency in the recovered fibers. At clinical low-resolutions (**right**), *CSD* struggles with the loss of input information, whereas our approach exhibits greater robustness to resolution losses and single-shell imaging protocols, yielding higher fidelity and spatially coherent fODFs.
 
 
 
 ### Overview of the proposed hemispherical graph convolution and the fODF estimation framework
 
 ![image](fig/methodology.jpg)
-**[A.]** Assuming antipodal spherical spatio-spherical signal, we reduce the spherical graph ($\mathcal{G},\mathbf{L}$) to an hemispherical graph ($\mathcal{H},\mathbf{L}^+$), reducing memory usage and increasing convolution speed. **[B.]** The SHD deconvolution framework operates on a grid of spherical signals and reduces computation complexity while improving neuronal fiber deconvolution.
+**[A.]** Assuming antipodal spherical spatio-spherical signal, we reduce the spherical graph ($\mathcal{G},\mathbf{L}$) to a hemispherical graph ($\mathcal{H},\mathbf{L}^+$), reducing memory usage and increasing convolution speed. **[B.]** The SHD deconvolution framework operates on a grid of spherical signals and reduces computation complexity while improving neuronal fiber deconvolution.
 
 ### fODF estimation example: Spherical Constrained Deconvolution vs. Spatio-Hemispherical Deconvolution
 
@@ -48,7 +50,7 @@ conda install -c mrtrix3 mrtrix3
 
 In a root folder:
 * Copy your diffusion MRI data (resp. the mask) as a nifti file under the name **features.nii.gz** (**mask.nii.gz**). 
-* Copy your bvecs and bvals files under the names **bvecs.bvecs** and **bvals.bvals**. Optionnaly, you can add a **bvecs_mask.txt** file if you want to mask some of the bvecs in the input of the model (usefull for super resolution training).
+* Copy your bvecs and bvals files under the names **bvecs.bvecs** and **bvals.bvals**. Optionally, you can add a **bvecs_mask.txt** file if you want to mask some of the bvecs in the input of the model (usefull for super resolution training).
 * In the root folder, create a folder for the response functions, called **response_functions**. There, create a folder for each response function estimation algorithm you want to use. We will use the name **rf_algo** as example folder. In each algorithm folder, copy the white matter, grey matter, and CSF reponse function files under the names **wm_response.txt**, **gm_response.txt**, and **csf_response.txt**. We refer to [Mrtrix3](https://mrtrix.readthedocs.io/en/0.3.16/concepts/response_function_estimation.html) for different response function algorithms. For example:
 ```bash
 data_path=root/subject_1
