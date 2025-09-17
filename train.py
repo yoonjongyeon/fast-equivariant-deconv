@@ -15,11 +15,11 @@ from model.model import ModelMultiSubject as Model
 
 import torch
 from torch.utils.data.dataloader import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+import wandb
 
 def main(config, save_path):
+    # set GPU
+    DEVICE = torch.device(f"cuda:{config['training']['gpu_num']}" if torch.cuda.is_available() else "cpu")
     """Train a model
     """
     # Load the dataset
@@ -33,12 +33,14 @@ def main(config, save_path):
     if config['model']['tissues']['csf']:
         rf_isotropic_names.append('csf_response')
         fodf_isotropic_names.append('fodf_csf')
-    if os.path.exists(f"{config['data']['data_path']}/list_subjects.txt"):
-        subject_list_path = np.loadtxt(f"{config['data']['data_path']}/list_subjects.txt", dtype=str, ndmin=1)
+    if os.path.exists(f"{config['data']['data_path']}/train_subjects.txt"):
+        subject_list_path = np.loadtxt(f"{config['data']['data_path']}/train_subjects.txt", dtype=str, ndmin=1)
     elif os.path.exists(f"{config['data']['data_path']}/features.nii.gz"):
         subject_list_path = [config['data']['data_path']]
     else:
         raise ValueError(f"Data path {config['data']['data_path']} does not contain any subject")
+    # subset train data
+    subject_list_path = subject_list_path[:config['data']['train_num']]
     print('-'*50)
     print('-'*6, ' Start Training ', '-'*6)
     print(f'Load {len(subject_list_path)} subjects: {subject_list_path}')
@@ -48,7 +50,7 @@ def main(config, save_path):
     else:
         f = None
     subject_list = Parallel(n_jobs=config['data']['cpu_subject_loader'])(delayed(SubjectdMRI)(subject_path, response_function_name=config['data']['rf_name'], verbose=True,
-                    features_name='features', mask_name='mask', bvecs_name='bvecs.bvecs', bvals_name='bvals.bvals', gradient_mask_input_name=config['data']['gradient_mask'],
+                    features_name='features', mask_name='T1_WM', bvecs_name='bvecs.bvecs', bvals_name='bvals.bvals', gradient_mask_input_name=config['data']['gradient_mask'],
                     rf_isotropic_names=rf_isotropic_names, fodf_path=config['data']['fodf_path'], fodf_isotropic_names=fodf_isotropic_names, normalize_per_shell=config['data']['normalize_per_shell'], normalize_in_mask=config['data']['normalize_in_mask'], sh_degree=config['model']['sh_degree'], loading_method=config['data']['loading_method'], h5_file=f) for subject_path in subject_list_path)
     dataset = MultiSubjectdMRI(subject_list, patch_size=config['model']['patch_size'], concatenate=config['model']['concatenate'], verbose=True)
     dataloader_train = DataLoader(dataset=dataset, batch_size=config['training']['batch_size'], shuffle=True, num_workers=config['data']['cpu_dataloader'])
@@ -56,7 +58,9 @@ def main(config, save_path):
 
     has_validation = False
     if not config['data']['data_path_validation'] is None:
-        subject_list_path_validation = np.loadtxt(f"{config['data']['data_path_validation']}/list_subjects.txt", dtype=str, ndmin=1)
+        subject_list_path_validation = np.loadtxt(f"{config['data']['data_path_validation']}/val_subjects.txt", dtype=str, ndmin=1)
+        # subset validation data
+        subject_list_path_validation = subject_list_path_validation[:config['data']['val_num']]
         print(f'Load {len(subject_list_path_validation)} Validation subjects: {subject_list_path_validation}')
         if config['data']['loading_method']=='h5':
             print(f"Create/Get h5 file at {config['data']['data_path_validation']}/subjects.hdf5")
@@ -64,7 +68,7 @@ def main(config, save_path):
         else:
             f_val = None
         subject_list_val = Parallel(n_jobs=config['data']['cpu_subject_loader'])(delayed(SubjectdMRI)(subject_path, response_function_name=config['data']['rf_name'], verbose=True,
-                        features_name='features', mask_name='mask', bvecs_name='bvecs.bvecs', bvals_name='bvals.bvals', gradient_mask_input_name=config['data']['gradient_mask'],
+                        features_name='features', mask_name='T1_WM', bvecs_name='bvecs.bvecs', bvals_name='bvals.bvals', gradient_mask_input_name=config['data']['gradient_mask'],
                         rf_isotropic_names=rf_isotropic_names, fodf_path=config['data']['fodf_path'], fodf_isotropic_names=fodf_isotropic_names, normalize_per_shell=config['data']['normalize_per_shell'], normalize_in_mask=config['data']['normalize_in_mask'], sh_degree=config['model']['sh_degree'], loading_method=config['data']['loading_method'], h5_file=f_val) for subject_path in subject_list_path_validation)
         dataset_val = MultiSubjectdMRI(subject_list_val, patch_size=config['model']['patch_size'], concatenate=config['model']['concatenate'], verbose=True)
         dataloader_val = DataLoader(dataset=dataset_val, batch_size=config['training']['batch_size_val'], shuffle=True, num_workers=config['data']['cpu_dataloader'])
@@ -127,29 +131,48 @@ def main(config, save_path):
         polar_filter_equi = polar_filter_equi.to(DEVICE)
     if not polar_filter_inva is None:
         polar_filter_inva = polar_filter_inva.to(DEVICE)
+        
+     # extract loss used in training
+    loss_types = {}
+    for loss_type in list(config['loss'].keys()):
+        for loss_type2 in list(config['loss'][loss_type].keys()):
+            if config['loss'][loss_type][loss_type2]['weight'] != 0:
+                loss_types[f'{loss_type}_{loss_type2}'] = config['loss'][loss_type][loss_type2]['weight']
+    
+    # wandb
+    if config['wandb']['use_wandb']:
+        wandb_config = {
+            'gpu number': config['training']['gpu_num'],
+            'number of train data': config['data']['train_num'],
+            'number of validation data': config['data']['val_num'],
+            'number of epochs': config['training']['n_epoch'],
+            'learning rate': config['training']['lr']
+            }
+        # add loss used in training in wandb_config
+        for key in list(loss_types.keys()):
+            wandb_config[key] =  loss_types[key]
+        exp_name = f'{config['training']['expname']}_{config['wandb']['exp_date']}'
+        wandb.init(project = "macro_aware_fods", name = exp_name, config = wandb_config)
 
     # Loss
     has_equi = config['model']['tissues']['wm']
     has_inva = config['model']['tissues']['gm'] + config['model']['tissues']['csf']
     has_fodf = not config['data']['fodf_path'] is None
-    writer = SummaryWriter(log_dir=f"{config['data']['data_path']}/result/run/{config['training']['expname']}")
-    losses = Losses(config['loss'], config['model']['sh_degree'], has_equi, has_inva, has_fodf, writer, config['training']['compute_extra_loss'], config['training']['n_epoch'], n_batch, prefix_dataset='train', verbose=True)
+    losses = Losses(config['loss'], config['model']['sh_degree'], has_equi, has_inva, has_fodf, config['training']['compute_extra_loss'], config['training']['n_epoch'], n_batch, prefix_dataset='train', verbose=True)
     losses.to(DEVICE)
     if has_validation:
-        losses_val = Losses(config['loss'], config['model']['sh_degree'], has_equi, has_inva, has_fodf, writer, config['training']['compute_extra_loss'], config['training']['n_epoch'], n_batch_val, prefix_dataset='val', verbose=True)
+        losses_val = Losses(config['loss'], config['model']['sh_degree'], has_equi, has_inva, has_fodf, config['training']['compute_extra_loss'], config['training']['n_epoch'], n_batch_val, prefix_dataset='val', verbose=True)
         losses_val.to(DEVICE)
-    writer.add_scalar('Constant/N_param', n_params, 0)
 
     # Optimizer/Scheduler
     optimizer = torch.optim.Adam(model.parameters(), lr=config['training']['lr'])
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[30,40,45], gamma=0.1, verbose=True)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[70,80,90], gamma=0.1)
     time_model = time.time()
     print(f'Create model: {time_model - time_dataset:.4f}s, Dataset: {time_dataset - start:.4f}s')
-    writer.add_scalar('Constant/length_dataset', time_dataset - start, 0)
-    writer.add_scalar('Constant/length_model', time_model - time_dataset, 0)
     print('-'*50)
     # Training loop
     for epoch in range(config['training']['n_epoch']):
+        print(f'----------Current Epoch: {epoch+1}----------')
         # TRAIN
         model.train()
 
@@ -172,7 +195,11 @@ def main(config, save_path):
 
             # Run model
             output_reconstructed, deconvolved_equi_shc, deconvolved_inva_shc = model(input_features, output_b0, input_signal_to_shc, output_shc_to_signal)
-            equi_polar_filter_shc, inva_polar_filter_shc = model.reconstruction.conv_equi.polar_filter, model.reconstruction.conv_inv.polar_filter
+            if len(rf_isotropic_names) == 0: 
+                equi_polar_filter_shc = model.reconstruction.conv_equi.polar_filter
+                inva_polar_filter_shc = None
+            else:
+                equi_polar_filter_shc, inva_polar_filter_shc = model.reconstruction.conv_equi.polar_filter, model.reconstruction.conv_inv.polar_filter
 
             # Compute loss
             loss_input = {'reconstruction': output_reconstructed, 'target': output_features, 'mask': output_mask,
@@ -186,33 +213,21 @@ def main(config, save_path):
                     output_isotropic_fodf = data['output_isotropic_fodf'].to(DEVICE)
                     loss_input['inva_deconvolved_shc_target'] = output_isotropic_fodf
 
-            loss, to_print = losses(**loss_input)
+            loss = losses(**loss_input)
 
             ###############################################################################################
             # Loss backward
             loss.backward()
             optimizer.step()
-
             ###############################################################################################
-            # To print loss
-            end = time.time()
-            to_print += f', Elapsed time: {end - start:.4f}s'
-            writer.add_scalar('length_epoch/train/Batch', end - start, losses.writer_step)
-
-            if batch % 10 == 0:
-                print(to_print, end="\r")
-
-            if (batch + 1) % 500 == 0:
-                torch.save(model.state_dict(), os.path.join(save_path, 'history', f'epoch_{epoch + 1}.pth'))
-                config['training']['last_epoch'] = epoch + 1
-                yaml.safe_dump(config, open(os.path.join(save_path, 'config.yml'), 'w'), default_flow_style=False)
-            start = time.time()
-
+            
         ###############################################################################################
         # Save and print mean loss for the epoch
-        writer.add_scalar('learning_rate/train/Epoch', optimizer.param_groups[0]["lr"], epoch)
-        _, to_print = losses.end_epoch()
-        print(to_print)
+        mean_train_loss, train_loss_dict = losses.end_epoch()
+        print(f'Epoch {epoch+1} Train mean loss: {mean_train_loss}')
+        # log wandb
+        if config['wandb']['use_wandb']:
+            wandb.log(train_loss_dict, step=epoch)
         scheduler.step()
 
         ###############################################################################################
@@ -243,7 +258,11 @@ def main(config, save_path):
 
                     # Run model
                     output_reconstructed, deconvolved_equi_shc, deconvolved_inva_shc = model(input_features, output_b0, input_signal_to_shc, output_shc_to_signal)
-                    equi_polar_filter_shc, inva_polar_filter_shc = model.reconstruction.conv_equi.polar_filter, model.reconstruction.conv_inv.polar_filter
+                    if len(rf_isotropic_names) == 0: 
+                        equi_polar_filter_shc = model.reconstruction.conv_equi.polar_filter
+                        inva_polar_filter_shc = None
+                    else:
+                        equi_polar_filter_shc, inva_polar_filter_shc = model.reconstruction.conv_equi.polar_filter, model.reconstruction.conv_inv.polar_filter
 
                     # Compute loss
                     loss_input = {'reconstruction': output_reconstructed, 'target': output_features, 'mask': output_mask,
@@ -256,25 +275,14 @@ def main(config, save_path):
                         if len(fodf_isotropic_names)>0:
                             output_isotropic_fodf = data['output_isotropic_fodf'].to(DEVICE)
                             loss_input['inva_deconvolved_shc_target'] = output_isotropic_fodf
-                    loss, to_print = losses_val(**loss_input)
+                    loss = losses_val(**loss_input)
 
-                    
-
-                    ###############################################################################################
-                    # To print loss
-                    end = time.time()
-                    to_print += f', Elapsed time: {end - start:.4f}s'
-                    writer.add_scalar('length_epoch/val/Batch', end - start, losses_val.writer_step)
-
-                    if batch % 10 == 0:
-                        print(to_print, end="\r")
-
-                    start = time.time()
-            
-            ###############################################################################################
             # Print mean loss for the epoch
-            _, to_print = losses_val.end_epoch()
-            print(to_print)
+            mean_val_loss, val_loss_dict = losses_val.end_epoch()
+            # log wandb
+            if config['wandb']['use_wandb']:
+                wandb.log(val_loss_dict, step=epoch)
+            print(f'Epoch {epoch+1} Validation mean loss: {mean_val_loss}')
 
 
 if __name__ == '__main__':
@@ -290,7 +298,8 @@ if __name__ == '__main__':
     config = yaml.safe_load(open(config_path, 'r'))
     
     # Save directory
-    save_path = f"{config['data']['data_path']}/result/{config['training']['expname']}"
+    # save_path = f"{config['data']['data_path']}/train_setting/{config['training']['expname']}"
+    save_path = f"/home/jongyeon/train_setting/{config['training']['expname']}"
     if not os.path.exists(save_path):
         print(f'Create new directory: {save_path}')
         os.makedirs(save_path, exist_ok=True)
@@ -300,10 +309,14 @@ if __name__ == '__main__':
     if not os.path.exists(history_path):
         print(f'Create new directory: {history_path}')
         os.makedirs(history_path, exist_ok=True)
+        
+    # Save config file to txt file
+    config_txt_path = os.path.join(save_path, 'config.txt')
+    with open(config_txt_path, 'w') as file:
+        json.dump(config, file, indent=2)
     
     # Save parameters
     with open(os.path.join(save_path, 'args.txt'), 'w') as file:
         json.dump(args.__dict__, file, indent=2)
 
     main(config, save_path)
-

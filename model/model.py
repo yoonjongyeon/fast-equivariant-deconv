@@ -41,7 +41,7 @@ class ModelMultiSubject(torch.nn.Module):
             rf_inva_shc_0 = self.reconstruction.conv_inv.polar_filter[:, 0, 0]
         else:
             rf_inva_shc_0 = None
-        deconvolved_equi_shc, deconvolved_inva_shc = self.deconvolution(intput_features, input_signal_to_shc, input_b0, rf_equi_shc_0, rf_inva_shc_0) # B x out_channels_equi x C x X x Y x Z, B x out_channels_inva x 1 x X x Y x Z
+        deconvolved_equi_shc, deconvolved_inva_shc = self.deconvolution(intput_features, input_signal_to_shc, input_b0, rf_equi_shc_0, rf_inva_shc_0) # B x out_channels_equi x C x X x Y x Z, B x out_channels_inva x 1 x X x Y x Z (None)
         # Reconstruct the signal
         reconstructed = self.reconstruction(deconvolved_equi_shc, deconvolved_inva_shc, output_shc_to_signal) # B x V_grad_out x X x Y x Z
         return reconstructed, deconvolved_equi_shc, deconvolved_inva_shc

@@ -50,7 +50,10 @@ class ReconstructionMultiSubject(torch.nn.Module):
             x_convolved_inva = torch.einsum('btoxyz,bov->btvxyz', x_convolved_inva_shc, output_shc_to_signal[:, :, 0]) # B x inva_channel x V x X x Y x Z
             x_convolved_inva = torch.sum(x_convolved_inva, axis=1) # B x V x X x Y x Z
         # Get reconstruction
-        x_reconstructed =  x_convolved_equi + x_convolved_inva
+        if not self.inva:
+            x_reconstructed =  x_convolved_equi
+        else:
+            x_reconstructed =  x_convolved_equi + x_convolved_inva
 
         return x_reconstructed
 

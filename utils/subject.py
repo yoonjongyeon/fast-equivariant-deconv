@@ -74,7 +74,7 @@ class SubjectdMRI():
         elif self.loading_method == 'h5':
             return not (self.data_path in self.h5_file)
         elif self.loading_method == 'memmap':
-            filename = f'{self.data_path}/{self.features_name}_NormedBy_{self.normed_by}_PerShellNormed_{self.normalize_per_shell}.memmap'
+            filename = f'{self.data_path}/WM_{self.features_name}_NormedBy_{self.normed_by}_PerShellNormed_{self.normalize_per_shell}.memmap'
             return not os.path.exists(filename)
         else:
             raise NotImplementedError(f'Invalid loading method {self.loading_method}')
@@ -91,7 +91,7 @@ class SubjectdMRI():
             full_fodf_path = f'{self.data_path}/{self.fodf_path}'
             if self.verbose:
                 print(f'Loading fODFs: {full_fodf_path}')
-            fodfs = Fodf(full_fodf_path, fodf_anisotropic_names=['fodf'], fodf_isotropic_names=self.fodf_isotropic_names, verbose=self.verbose, loading_method=self.loading_method)
+            fodfs = Fodf(full_fodf_path, fodf_anisotropic_names=['fodf_wm'], fodf_isotropic_names=self.fodf_isotropic_names, verbose=self.verbose, loading_method=self.loading_method)
             assert fodfs.fodf_anisotropic.shape[1:4] == self.image.image.shape[:3], f'Invalid Anisotropic fODF shape {fodfs.fodf_anisotropic.shape[1:4]} and Features shape {self.image.image.shape[:3]}'
             assert fodfs.fodf_anisotropic.shape[0] == 1, f'Invalid Anisotropic fODF shape {fodfs.fodf_anisotropic.shape[0]} and Provided tissue {1}'
             if len(self.fodf_isotropic_names)>0:
@@ -207,7 +207,7 @@ class SubjectdMRI():
         del self.image.image
 
     def add_to_memmap(self):
-        filename = f'{self.data_path}/{self.features_name}_NormedBy_{self.normed_by}_PerShellNormed_{self.normalize_per_shell}.memmap'
+        filename = f'{self.data_path}/WM_{self.features_name}_NormedBy_{self.normed_by}_PerShellNormed_{self.normalize_per_shell}.memmap'
         if self.verbose:
             print(f'Adding data to memmap at {filename}')
         if not os.path.exists(filename):

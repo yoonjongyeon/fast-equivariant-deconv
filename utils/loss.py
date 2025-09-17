@@ -8,7 +8,7 @@ from .spherical_harmonic import _sh_matrix
 
 
 class Losses(nn.Module):
-    def __init__(self, loss_config, sh_degree, has_equi, has_inva, has_fodf, writer, compute_extra_loss, n_epoch, n_batch, prefix_dataset='train', verbose=False):
+    def __init__(self, loss_config, sh_degree, has_equi, has_inva, has_fodf, compute_extra_loss, n_epoch, n_batch, prefix_dataset='train', verbose=False):
         super(Losses, self).__init__()
         if verbose:
             print('-'*50)
@@ -16,19 +16,18 @@ class Losses(nn.Module):
             print(f'Compute extra loss: {compute_extra_loss}')
             print(f'Number of epochs: {n_epoch}')
             print(f'Number of batches: {n_batch}')
-        self.writer = writer
-        self.writer_step = 0
         self.compute_extra_loss = compute_extra_loss
         self.n_epoch = n_epoch
         self.epoch = 0
-        self.n_batch = n_batch
-        self.batch = 0
-        self.has_equi = has_equi
-        self.has_inva = has_inva
-        self.has_fodf = has_fodf
+        self.n_batch = n_batch      # number of total batch
+        self.batch = 0              # current batch number
+        self.has_equi = has_equi    # WM
+        self.has_inva = has_inva    # GM, CSF
+        self.has_fodf = has_fodf    # reference FODs (ground truth)
         ignore_losses = ['fodf_reconstruction' if not has_fodf else '']
-        self.prefix_dataset = prefix_dataset
+        self.prefix_dataset = prefix_dataset     # train or validation
         # Reconstruction related losses
+        # self.losses contains Loss() object
         self.losses = [Loss(loss_name=loss_name, verbose=verbose, prefix_dataset=self.prefix_dataset, **loss_config['reconstruction'][loss_name]) for loss_name in loss_config['reconstruction']]
         # Equivariant decomposition related losses
         if has_equi:
@@ -44,8 +43,8 @@ class Losses(nn.Module):
         if verbose:
             print('-'*50)
 
+    # compute batch loss
     def forward(self, **params):
-        to_print = ""
         total_loss = 0
         if self.has_equi:
             params['equi_deconvolved_shc_normed'] = params['equi_deconvolved_shc'] / (torch.linalg.norm(params['equi_deconvolved_shc'], dim=2, keepdim=True) + 1e-16)
@@ -56,30 +55,28 @@ class Losses(nn.Module):
             params['inva_deconvolved'] = params['inva_deconvolved_shc'] / np.sqrt(4*np.pi)
         for loss in self.losses:
             if loss.weight>0 or self.compute_extra_loss:
-                loss_value, add_to_print = loss(self.writer, **params)
+                loss_value = loss(**params)
                 if loss.weight>0:
                     total_loss += loss_value * loss.weight
-                to_print += ', ' + add_to_print
-        to_print = f"Epoch [{self.epoch + 1}/{self.n_epoch}], Iter [{self.batch + 1}/{self.n_batch}]: Loss: {total_loss.item():.10f}" + to_print
-        self.writer.add_scalar(f'Total/{self.prefix_dataset}/Batch', total_loss.item(), self.writer_step)
-        self.writer_step += 1
         self.batch += 1
-        return total_loss, to_print
+        return total_loss
 
+    # compute overall(epoch) loss
     def end_epoch(self):
-        to_print = ""
+        loss_dict = {}  # Store individual loss values
         total_loss = 0
         for loss in self.losses:
             if loss.weight>0 or self.compute_extra_loss:
-                loss_value, add_to_print = loss.end_epoch(self.writer)
+                loss_value = loss.end_epoch()
                 if loss.weight>0:
                     total_loss += loss_value * loss.weight
-                to_print += ', ' + add_to_print
-        to_print = f"Epoch [{self.epoch + 1}/{self.n_epoch}]: Loss: {total_loss:.10f}" + to_print
-        self.writer.add_scalar(f'Total/{self.prefix_dataset}/Epoch', total_loss, self.epoch)
+                # Store individual loss values in dictionary for logging
+                loss_dict[f"{self.prefix_dataset}_Loss-{loss.loss_name}"] = loss_value
+        # Store total loss separately
+        loss_dict[f"{self.prefix_dataset}_Loss-Total"] = total_loss
         self.epoch += 1
-        self.batch = 0
-        return total_loss, to_print
+        self.batch = 0  # reset batch num
+        return total_loss, loss_dict
 
 
 class Loss(nn.Module):
@@ -108,29 +105,25 @@ class Loss(nn.Module):
         # Get saving name
         self.loss_name = f"{f'{prefix}_'*(not prefix is None)}{loss_name}"
         # Initialize loss memory
-        self.loss_memory = 0
-        self.n_batch = 0
-        self.epoch = 0
-        self.writer_step = 0
+        self.loss_memory = 0    # contains overall loss in batches (initialzied in every end of epoch)
+        self.n_batch = 0        # current batch num in current epoch (initialzied in every end of epoch)
+        self.epoch = 0          # current epoch
         self.prefix_dataset = prefix_dataset
 
-    def forward(self, writer, **params):
+    # compute batch loss
+    def forward(self, **params):
         loss = self.loss_function(**params)
         self.loss_memory += loss.item()
         self.n_batch += 1
-        to_print = f"{self.loss_name}: {loss.item():.10f}"
-        writer.add_scalar(f'{self.loss_name}/{self.prefix_dataset}/Batch', loss.item(), self.writer_step)
-        self.writer_step += 1
-        return loss, to_print
+        return loss
 
-    def end_epoch(self, writer):
+    # compute epoch loss (after computation of last batch in every epoch)
+    def end_epoch(self):
         loss = self.loss_memory / self.n_batch
-        self.loss_memory = 0
-        self.n_batch = 0
-        to_print = f'{self.loss_name}: {loss:.10f}'
-        writer.add_scalar(f'{self.loss_name}/{self.prefix_dataset}/Epoch', loss, self.epoch)
+        self.loss_memory = 0        # reset loss_memory
+        self.n_batch = 0            # reset num_batch
         self.epoch += 1
-        return loss, to_print
+        return loss
 
 class ReconstructionLoss(nn.Module):
     def __init__(self, prefix=None, **params):

@@ -126,7 +126,7 @@ class DeconvolutionMultiSubject(torch.nn.Module):
         deconvolved = self.deconvolve(intput_features) # B x out_channels x V_grid x X x Y x Z
 
         # Separate invariant and equivariant to rotation channels (separate white matter (equivariant) and CSF + gray matter (invariant))
-        deconvolved_equi, deconvolved_inva = self.separate(deconvolved) # B x out_channels_equi x V x X x Y x Z, B x out_channels_inva x X x Y x Z
+        deconvolved_equi, deconvolved_inva = self.separate(deconvolved) # B x out_channels_equi x V x X x Y x Z, B x out_channels_inva x X x Y x Z (when n_inva == 0 -> None)
         
         # Symmetrized and get the spherical harmonic coefficients of the equivariant channels
         if self.n_equi != 0:

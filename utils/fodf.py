@@ -35,7 +35,7 @@ class Fodf():
                 for fodf_name in self.fodf_isotropic_names:
                     fodf_isotropic.append(self.load_fodf(fodf_name))
                 fodf_isotropic = np.stack(fodf_isotropic, axis=0)
-        return fodf_anisotropic, fodf_isotropic
+        return fodf_anisotropic, fodf_isotropic # None
     
     def get_shape(self):
         if self.cache:
@@ -43,11 +43,15 @@ class Fodf():
                 shape_anisotropic = self.fodf_anisotropic.shape
             if len(self.fodf_isotropic_names)>0:
                 shape_isotropic = self.fodf_isotropic.shape
+            else:
+                shape_isotropic = None
         else:
             if len(self.fodf_anisotropic_names)>0:
                 shape_anisotropic = (len(self.fodf_anisotropic_names), *self.load_fodf(self.fodf_anisotropic_names[0]).shape)
             if len(self.fodf_isotropic_names)>0:
                 shape_isotropic = (len(self.fodf_isotropic_names), *self.load_fodf(self.fodf_isotropic_names[0]).shape)
+            else:
+                shape_isotropic = None
         if self.verbose:
             print(f'fODF anisotropic shape: {shape_anisotropic}')
             print(f'fODF isotropic shape: {shape_isotropic}')

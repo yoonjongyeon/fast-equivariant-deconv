@@ -1,0 +1,10 @@
+/banana/jongyeon/fqd_data/train/257845
+/banana/jongyeon/fqd_data/train/283543
+/banana/jongyeon/fqd_data/train/318637
+/banana/jongyeon/fqd_data/train/320826
+/banana/jongyeon/fqd_data/train/330324
+/banana/jongyeon/fqd_data/train/346137
+/banana/jongyeon/fqd_data/train/365343
+/banana/jongyeon/fqd_data/train/380036
+/banana/jongyeon/fqd_data/train/381038
+/banana/jongyeon/fqd_data/train/385046
